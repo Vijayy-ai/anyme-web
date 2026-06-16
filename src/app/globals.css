@@ -1,0 +1,176 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Outfit", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --color-anyme-bg: #000000;
+  --color-anyme-surface: #0a0a0a;
+  --color-anyme-card: #111111;
+  --color-anyme-elevated: #181818;
+  --color-anyme-border: #262626;
+  --color-anyme-border-light: #3a3a3a;
+  --color-anyme-silver-light: #e4e4e4;
+  --color-anyme-silver: #b8b8b8;
+  --color-anyme-silver-mid: #8a8a8a;
+  --color-anyme-silver-dark: #5a5a5a;
+  --color-anyme-muted: #6b6b6b;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-anyme-bg text-anyme-silver-light antialiased;
+    font-family: var(--font-body);
+  }
+
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    opacity: 0.035;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px 180px;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent;
+    background-image: linear-gradient(
+      160deg,
+      var(--color-anyme-silver-light) 0%,
+      var(--color-anyme-silver) 45%,
+      var(--color-anyme-silver-mid) 100%
+    );
+  }
+
+  .surface-gradient {
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.06) 0%,
+      rgba(255, 255, 255, 0.02) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+  }
+
+  .glow-silver {
+    box-shadow: 0 0 60px rgba(200, 200, 200, 0.08);
+  }
+
+  .hero-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+
+  .store-btn-shine-wrap {
+    position: relative;
+    display: inline-flex;
+    width: 100%;
+    padding: 1px;
+    border-radius: 0.5rem;
+    background: var(--color-anyme-border);
+    overflow: hidden;
+  }
+
+  @media (min-width: 640px) {
+    .store-btn-shine-wrap {
+      width: auto;
+    }
+  }
+
+  .store-btn-shine-wrap::before {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 220%;
+    height: 220%;
+    transform: translate(-50%, -50%);
+    background: conic-gradient(
+      from -135deg at 50% 50%,
+      transparent 0deg 255deg,
+      rgba(184, 184, 184, 0.25) 285deg,
+      rgba(228, 228, 228, 0.85) 310deg,
+      #ffffff 325deg,
+      rgba(228, 228, 228, 0.85) 340deg,
+      rgba(184, 184, 184, 0.25) 365deg,
+      transparent 395deg
+    );
+    animation: store-btn-shine-rotate 2.8s linear 1 forwards;
+    pointer-events: none;
+  }
+
+  .store-btn-shine-wrap:nth-child(2)::before {
+    animation-delay: 0.4s;
+  }
+
+  .store-btn-shine {
+    position: relative;
+    z-index: 1;
+    border-radius: calc(0.5rem - 1px);
+    background: var(--color-anyme-card);
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+
+  .store-btn-shine-wrap:hover .store-btn-shine {
+    background: var(--color-anyme-elevated);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .store-btn-shine-wrap::before {
+      animation: none;
+      background: none;
+    }
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 35s linear infinite;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-float {
+  animation: float 7s ease-in-out infinite;
+}
+
+@keyframes store-btn-shine-rotate {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+    opacity: 0;
+  }
+}
