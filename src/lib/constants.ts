@@ -1,7 +1,7 @@
 export const APP_LINKS = {
   android:
     "https://play.google.com/store/apps/details?id=com.snoozeit.anymeapp",
-  ios: "https://apps.apple.com/us/app/anyme-indias-vertical-anime/id6760490198",
+  ios: "https://apps.apple.com/in/app/anyme-indias-vertical-anime/id6760490198",
 };
 
 export const COMMUNITY_LINK =

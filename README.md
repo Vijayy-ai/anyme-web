@@ -26,4 +26,4 @@ npm start
 ## App Store Links
 
 - [Google Play](https://play.google.com/store/apps/details?id=com.snoozeit.anymeapp)
-- [App Store](https://apps.apple.com/us/app/anyme-indias-vertical-anime/id6760490198)
+- [App Store](https://apps.apple.com/in/app/anyme-indias-vertical-anime/id6760490198)
