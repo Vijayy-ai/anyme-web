@@ -4,60 +4,87 @@ import { APP_LINKS } from "@/lib/constants";
 type Size = "sm" | "md" | "lg";
 
 const sizeClasses: Record<Size, string> = {
-  sm: "h-9 gap-2 px-3 text-xs",
-  md: "h-11 gap-2.5 px-4 text-sm",
-  lg: "h-14 gap-3 px-5 text-base",
+  sm: "h-10 gap-2 px-3",
+  md: "h-12 gap-2.5 px-3.5",
+  lg: "h-14 gap-3 px-4",
 };
 
 const iconSizes: Record<Size, string> = {
-  sm: "h-4 w-4",
-  md: "h-5 w-5",
-  lg: "h-6 w-6",
+  sm: "h-5 w-5",
+  md: "h-6 w-6",
+  lg: "h-7 w-7",
+};
+
+const labelTop: Record<Size, string> = {
+  sm: "text-[8px]",
+  md: "text-[9px]",
+  lg: "text-[10px]",
+};
+
+const labelMain: Record<Size, string> = {
+  sm: "text-[12px]",
+  md: "text-[13px]",
+  lg: "text-[15px]",
 };
 
 export function AppStoreButtons({
   size = "md",
   className = "",
+  equal = false,
 }: {
   size?: Size;
   className?: string;
+  /** Stretch both buttons to equal width (good for modals). */
+  equal?: boolean;
 }) {
   const base =
-    "store-btn-shine inline-flex items-center justify-center font-medium text-anyme-silver-light";
+    "store-btn-shine inline-flex items-center justify-start rounded-[10px] font-medium text-white";
+
+  const itemClass = equal
+    ? `min-w-0 flex-1 ${sizeClasses[size]}`
+    : `w-full sm:w-auto ${sizeClasses[size]}`;
 
   return (
     <div
-      className={`flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center ${className}`}
+      className={`flex w-full flex-row items-stretch gap-2.5 ${className}`}
     >
-      <span className="store-btn-shine-wrap">
+      <span className={`store-btn-shine-wrap ${equal ? "min-w-0 flex-1" : "flex-1 sm:flex-none"}`}>
         <Link
           href={APP_LINKS.android}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${base} w-full sm:w-auto ${sizeClasses[size]}`}
+          className={`${base} ${itemClass}`}
         >
-          <PlayStoreIcon className={iconSizes[size]} />
-          <span>
-            <span className="block text-[10px] leading-none text-anyme-silver-mid">
+          <PlayStoreIcon className={`shrink-0 ${iconSizes[size]}`} />
+          <span className="min-w-0 text-left leading-tight">
+            <span
+              className={`block font-normal tracking-wide text-white/55 ${labelTop[size]}`}
+            >
               GET IT ON
             </span>
-            Google Play
+            <span className={`block font-semibold tracking-tight ${labelMain[size]}`}>
+              Google Play
+            </span>
           </span>
         </Link>
       </span>
-      <span className="store-btn-shine-wrap">
+      <span className={`store-btn-shine-wrap ${equal ? "min-w-0 flex-1" : "flex-1 sm:flex-none"}`}>
         <Link
           href={APP_LINKS.ios}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${base} w-full sm:w-auto ${sizeClasses[size]}`}
+          className={`${base} ${itemClass}`}
         >
-          <AppleIcon className={iconSizes[size]} />
-          <span>
-            <span className="block text-[10px] leading-none text-anyme-silver-mid">
+          <AppleIcon className={`shrink-0 ${iconSizes[size]}`} />
+          <span className="min-w-0 text-left leading-tight">
+            <span
+              className={`block font-normal tracking-wide text-white/55 ${labelTop[size]}`}
+            >
               Download on the
             </span>
-            App Store
+            <span className={`block font-semibold tracking-tight ${labelMain[size]}`}>
+              App Store
+            </span>
           </span>
         </Link>
       </span>

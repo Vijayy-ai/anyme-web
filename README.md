@@ -1,29 +1,42 @@
-# anyme-web
+# AnyMe Web
 
-Marketing website for **AnyMe** — India's first vertical anime microdrama platform.
+Dark, content-first marketing + free-watch site for **anyme.in**.
+
+## Product rules (v1)
+
+| Content | Website | App |
+|--------|---------|-----|
+| Free episode (`is_premium: false`) | Play in browser | Play normally |
+| Premium episode (`is_premium: true`) | Get the App CTA only | Paywall / coins |
+
+No coin purchase, IAP, wallet, or login unlock on the website.
 
 ## Pages
 
-- **Home** (`/`) — Hero, features, stats, founder message, app download CTAs
-- **Contact** (`/contact`) — Phone, email, and location details
+- `/` — Hero carousel + content rows
+- `/series/[seriesId]` — Details + episode list
+- `/watch/[seriesId]/[episodeId]` — Free playback (premium → app CTA)
+- `/search` — Series search
+- `/contact` — Contact
 
-## Getting Started
+## Setup
 
 ```bash
 npm install
+cp .env.local.example .env.local   # or use the committed defaults below
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Build for Production
+### Env
 
-```bash
-npm run build
-npm start
+```
+NEXT_PUBLIC_API_BASE=https://anyme.publicvm.com
+NEXT_PUBLIC_PLAY_STORE_URL=https://play.google.com/store/apps/details?id=com.snoozeit.anymeapp
+NEXT_PUBLIC_APP_STORE_URL=https://apps.apple.com/app/anyme/id6760490198
 ```
 
-## App Store Links
+## Playback
 
-- [Google Play](https://play.google.com/store/apps/details?id=com.snoozeit.anymeapp)
-- [App Store](https://apps.apple.com/in/app/anyme-indias-vertical-anime/id6760490198)
+Free episodes call `get-url`, then stream via `/api/playback` (server-side CloudFront cookie proxy) + `hls.js` / Safari native HLS.

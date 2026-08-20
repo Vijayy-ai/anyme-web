@@ -3,10 +3,10 @@
 @theme {
   --font-display: "Outfit", sans-serif;
   --font-body: "Inter", sans-serif;
-  --color-anyme-bg: #000000;
-  --color-anyme-surface: #0a0a0a;
-  --color-anyme-card: #111111;
-  --color-anyme-elevated: #181818;
+  --color-anyme-bg: #0e1012;
+  --color-anyme-surface: #1e1e1e;
+  --color-anyme-card: #232323;
+  --color-anyme-elevated: #2a2a2a;
   --color-anyme-border: #262626;
   --color-anyme-border-light: #3a3a3a;
   --color-anyme-silver-light: #e4e4e4;
@@ -19,6 +19,30 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+  }
+
+  /* Dark thin scrollbars site-wide (no bright white track) */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.35);
   }
 
   body {
@@ -73,17 +97,10 @@
   .store-btn-shine-wrap {
     position: relative;
     display: inline-flex;
-    width: 100%;
     padding: 1px;
-    border-radius: 0.5rem;
-    background: var(--color-anyme-border);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.14);
     overflow: hidden;
-  }
-
-  @media (min-width: 640px) {
-    .store-btn-shine-wrap {
-      width: auto;
-    }
   }
 
   .store-btn-shine-wrap::before {
@@ -115,15 +132,14 @@
   .store-btn-shine {
     position: relative;
     z-index: 1;
-    border-radius: calc(0.5rem - 1px);
-    background: var(--color-anyme-card);
-    transition:
-      background-color 0.2s ease,
-      color 0.2s ease;
+    width: 100%;
+    border-radius: 9px;
+    background: #0a0a0a;
+    transition: background-color 0.2s ease;
   }
 
   .store-btn-shine-wrap:hover .store-btn-shine {
-    background: var(--color-anyme-elevated);
+    background: #161616;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -172,5 +188,54 @@
   100% {
     transform: translate(-50%, -50%) rotate(360deg);
     opacity: 0;
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-modal-in {
+  animation: modal-in 0.22s ease-out;
+}
+
+.scrollbar-hide,
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar,
+.scrollbar-none::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+  background: transparent;
+}
+
+.page-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+.hero-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.065) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.065) 1px, transparent 1px);
+  background-size: 52px 52px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-modal-in {
+    animation: none;
   }
 }

@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { Outfit, Inter } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { AppDownloadProvider } from "@/components/AppDownloadProvider";
+import { AppDownloadModal } from "@/components/AppDownloadModal";
+import { AnalyticsProvider } from "@/components/AnalyticsProvider";
 import "./globals.css";
 
 const outfit = Outfit({
@@ -17,9 +20,12 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AnyMe | India's Vertical Anime Microdrama Platform",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "https://anyme.in",
+  ),
+  title: "AnyMe | Watch Free Anime Microdramas",
   description:
-    "Watch original anime microdramas in 1–2 minute episodes. India's first vertical anime platform with regional language support. Download AnyMe now.",
+    "Watch free anime microdrama episodes in your browser. Premium episodes continue in the AnyMe app — India's vertical anime platform.",
   keywords: [
     "AnyMe",
     "anime",
@@ -27,6 +33,7 @@ export const metadata: Metadata = {
     "vertical anime",
     "India anime",
     "short anime",
+    "watch free",
   ],
   icons: {
     icon: "/anyme-logo.png",
@@ -35,7 +42,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "AnyMe | Anime in Microdrama",
     description:
-      "India's first vertical anime microdrama platform. Binge original stories, one short episode at a time.",
+      "Watch free episodes on the web. Get the app for premium series.",
     type: "website",
     images: ["/anyme-logo.png"],
   },
@@ -49,9 +56,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${outfit.variable} ${inter.variable}`}>
       <body suppressHydrationWarning>
-        <Header />
-        <main>{children}</main>
-        <Footer />
+        <AppDownloadProvider>
+          <AnalyticsProvider />
+          <Header />
+          <main>{children}</main>
+          <Footer />
+          <AppDownloadModal />
+        </AppDownloadProvider>
       </body>
     </html>
   );

@@ -18,9 +18,15 @@
 # testing
 /coverage
 
-# environment variables
+# environment variables (secrets — never commit)
 .env
-.env.*
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env*.local
+
+# allow committed templates only
 !.env.example
 
 # debug logs
@@ -34,6 +40,12 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# local sqlite leftovers
+prisma/*.db
+prisma/*.db-journal
+*.db
+*.db-journal
 
 # OS
 .DS_Store
@@ -49,3 +61,5 @@ Desktop.ini
 
 # cursor
 .cursor/
+
+/src/generated/prisma
