@@ -70,7 +70,6 @@ export function MobileWatchReel({
         if (!id) return;
         setActiveId((prev) => {
           if (prev === id) return prev;
-          router.replace(`/watch/${seriesId}/${id}`, { scroll: false });
           return id;
         });
       },
@@ -79,7 +78,13 @@ export function MobileWatchReel({
 
     nodes.forEach((n) => observer.observe(n));
     return () => observer.disconnect();
-  }, [episodes, router, seriesId]);
+  }, [episodes, seriesId]);
+
+  useEffect(() => {
+    const path = `/watch/${seriesId}/${activeId}`;
+    if (window.location.pathname === path) return;
+    router.replace(path, { scroll: false });
+  }, [activeId, router, seriesId]);
 
   return (
     <div className="lg:hidden">

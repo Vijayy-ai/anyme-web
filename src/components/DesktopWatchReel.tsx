@@ -56,7 +56,6 @@ export function DesktopWatchReel({
         if (!id) return;
         setActiveId((prev) => {
           if (prev === id) return prev;
-          router.replace(`/watch/${seriesId}/${id}`, { scroll: false });
           return id;
         });
       },
@@ -65,7 +64,13 @@ export function DesktopWatchReel({
 
     nodes.forEach((n) => observer.observe(n));
     return () => observer.disconnect();
-  }, [episodes, router, seriesId]);
+  }, [episodes, seriesId]);
+
+  useEffect(() => {
+    const path = `/watch/${seriesId}/${activeId}`;
+    if (window.location.pathname === path) return;
+    router.replace(path, { scroll: false });
+  }, [activeId, router, seriesId]);
 
   // Wheel / trackpad: snap one episode at a time
   useEffect(() => {
@@ -90,7 +95,6 @@ export function DesktopWatchReel({
         );
         el?.scrollIntoView({ behavior: "smooth", block: "start" });
         setActiveId(target.id);
-        router.replace(`/watch/${seriesId}/${target.id}`, { scroll: false });
       }
 
       window.setTimeout(() => {
@@ -100,7 +104,7 @@ export function DesktopWatchReel({
 
     root.addEventListener("wheel", onWheel, { passive: false });
     return () => root.removeEventListener("wheel", onWheel);
-  }, [activeId, episodes, router, seriesId]);
+  }, [activeId, episodes, seriesId]);
 
   return (
     <div

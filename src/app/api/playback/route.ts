@@ -6,15 +6,12 @@ export const runtime = "nodejs";
 
 type CookieMap = Record<string, string>;
 
+const signCache = new Map<string, { at: number; payload: PlaybackSuccess }>();
+const SIGN_TTL_MS = 40_000;
+
 function encodePayload(cookies: CookieMap, baseUrl: string) {
   const json = JSON.stringify({ c: cookies, b: baseUrl });
   return Buffer.from(json, "utf8").toString("base64url");
-}
-
-function cookieHeader(cookies: CookieMap) {
-  return Object.entries(cookies)
-    .map(([k, v]) => `${k}=${v}`)
-    .join("; ");
 }
 
 function rewritePlaylist(
@@ -58,27 +55,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "missing_key" }, { status: 400 });
   }
 
-  const upstream = new URL("/api/v1/video-service/get-url/", API_BASE);
-  upstream.searchParams.set("key", key);
-  upstream.searchParams.set("use_cloudfront", "true");
+  const cached = signCache.get(key);
+  let signed: PlaybackSuccess;
+  if (cached && Date.now() - cached.at < SIGN_TTL_MS && cached.payload.url) {
+    signed = cached.payload;
+  } else {
+    const upstream = new URL("/api/v1/video-service/get-url/", API_BASE);
+    upstream.searchParams.set("key", key);
+    upstream.searchParams.set("use_cloudfront", "true");
 
-  const signRes = await fetch(upstream.toString(), {
-    headers: { Accept: "application/json" },
-    cache: "no-store",
-  });
+    const signRes = await fetch(upstream.toString(), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
 
-  const payload = await signRes.json().catch(() => ({}));
+    const payload = await signRes.json().catch(() => ({}));
 
-  if (!signRes.ok) {
-    return NextResponse.json(payload, { status: signRes.status });
-  }
+    if (!signRes.ok) {
+      return NextResponse.json(payload, { status: signRes.status });
+    }
 
-  const signed = payload as PlaybackSuccess;
-  if (!signed.url) {
-    return NextResponse.json(
-      { error: "missing_playback_url" },
-      { status: 502 },
-    );
+    signed = payload as PlaybackSuccess;
+    if (!signed.url) {
+      return NextResponse.json(
+        { error: "missing_playback_url" },
+        { status: 502 },
+      );
+    }
+    signCache.set(key, { at: Date.now(), payload: signed });
   }
 
   const cookies = signed.cloudfront_cookies ?? {};
@@ -102,11 +106,26 @@ export async function GET(req: NextRequest) {
     );
   }
 
+  // HLS: return a playable URL — let /api/cf rewrite playlists.
+  // Avoids an extra CloudFront fetch on this hop (faster start).
+  if (looksLikeHls(key, signed.url) || needsProxy) {
+    const playUrl =
+      needsProxy && token
+        ? `/api/cf?u=${encodeURIComponent(signed.url)}&t=${token}`
+        : signed.url;
+
+    return NextResponse.json(
+      { type: "hls", url: playUrl },
+      {
+        status: 200,
+        headers: { "Cache-Control": "private, no-store" },
+      },
+    );
+  }
+
+  // Rare: unsigned non-cookie HLS URL — still rewrite if we can fetch it
   const playlistRes = await fetch(signed.url, {
-    headers: {
-      ...(needsProxy ? { Cookie: cookieHeader(cookies) } : {}),
-      Accept: "*/*",
-    },
+    headers: { Accept: "*/*" },
     cache: "no-store",
   });
 
@@ -124,14 +143,9 @@ export async function GET(req: NextRequest) {
   }
 
   const contentType = playlistRes.headers.get("content-type") || "";
-  // Safety: if CDN returned an mp4 body, hand URL to client instead of corrupting it
   if (contentType.includes("video/") || contentType.includes("mp4")) {
-    const playUrl =
-      needsProxy && token
-        ? `/api/cf?u=${encodeURIComponent(signed.url)}&t=${token}`
-        : signed.url;
     return NextResponse.json(
-      { type: "mp4", url: playUrl },
+      { type: "mp4", url: signed.url },
       {
         status: 200,
         headers: { "Cache-Control": "private, no-store" },
@@ -145,8 +159,7 @@ export async function GET(req: NextRequest) {
   return new NextResponse(rewritten, {
     status: 200,
     headers: {
-      "Content-Type":
-        contentType || "application/vnd.apple.mpegurl",
+      "Content-Type": contentType || "application/vnd.apple.mpegurl",
       "Cache-Control": "private, no-store",
     },
   });

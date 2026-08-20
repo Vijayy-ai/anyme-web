@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import Hls from "hls.js";
+import { resolvePlayback } from "@/lib/playback-client";
 import { useAppDownload } from "./AppDownloadProvider";
 import { track } from "@/lib/analytics";
 
@@ -16,6 +17,49 @@ type VideoPlayerProps = {
   nextLockedEpisodeId?: string | null;
 };
 
+function lowestLevelIndex(
+  levels: Array<{ bitrate?: number; height?: number; width?: number }>,
+) {
+  if (!levels.length) return 0;
+  let best = 0;
+  let score = Number.POSITIVE_INFINITY;
+  levels.forEach((level, i) => {
+    const s =
+      (level.bitrate && level.bitrate > 0 ? level.bitrate : 0) ||
+      (level.height || 0) * 1000 ||
+      (level.width || 0);
+    if (s < score) {
+      score = s;
+      best = i;
+    }
+  });
+  return best;
+}
+
+const SOUND_PREF_KEY = "anyme-wants-sound";
+
+function readWantsSound() {
+  try {
+    return sessionStorage.getItem(SOUND_PREF_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function writeWantsSound() {
+  try {
+    sessionStorage.setItem(SOUND_PREF_KEY, "1");
+  } catch {
+    /* ignore */
+  }
+}
+
+function applyUnmuted(video: HTMLVideoElement) {
+  video.muted = false;
+  video.volume = 1;
+  writeWantsSound();
+}
+
 export function VideoPlayer({
   videoKey,
   poster,
@@ -27,10 +71,11 @@ export function VideoPlayer({
 }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const trackedStartRef = useRef(false);
+  const unlockTapRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(() => !readWantsSound());
   const [progress, setProgress] = useState(0);
   const { open } = useAppDownload();
   const router = useRouter();
@@ -41,13 +86,14 @@ export function VideoPlayer({
 
     let hls: Hls | null = null;
     let cancelled = false;
-    const src = `/api/playback?key=${encodeURIComponent(videoKey)}`;
+    let abrReleaseTimer: number | undefined;
+    const preferSound = readWantsSound();
 
     setLoading(true);
     setError(null);
     setProgress(0);
     setPlaying(false);
-    setMuted(false);
+    setMuted(!preferSound);
     trackedStartRef.current = false;
 
     function clearLoading() {
@@ -61,33 +107,47 @@ export function VideoPlayer({
       }
     }
 
-    /** Prefer unmuted playback; fall back to muted only if browser blocks it. */
     async function startPlayback() {
       if (!video || cancelled) return;
-      video.muted = false;
-      try {
-        await video.play();
-        if (!cancelled) {
-          setMuted(false);
-          setPlaying(true);
-        }
-      } catch {
-        // Autoplay-with-sound blocked — play muted, unmute on next gesture
-        video.muted = true;
-        if (!cancelled) setMuted(true);
+      video.volume = 1;
+
+      // If user already unlocked sound this session, try unmuted play first.
+      if (preferSound) {
+        video.muted = false;
+        if (!cancelled) setMuted(false);
         try {
           await video.play();
-          if (!cancelled) setPlaying(true);
+          if (!cancelled) {
+            setPlaying(true);
+            clearLoading();
+          }
+          return;
         } catch {
-          clearLoading();
+          /* browser blocked — fall back to muted */
         }
+      }
+
+      video.muted = true;
+      if (!cancelled) setMuted(true);
+      try {
+        await video.play();
+        if (cancelled) return;
+        setPlaying(true);
+        clearLoading();
+        if (preferSound) {
+          applyUnmuted(video);
+          setMuted(!video.muted ? false : true);
+        }
+      } catch {
+        clearLoading();
       }
     }
 
     function attachNative(url: string) {
       if (!video) return;
       video.src = url;
-      video.muted = false;
+      video.muted = !preferSound;
+      video.volume = 1;
       video.addEventListener("loadeddata", clearLoading, { once: true });
       video.addEventListener("canplay", clearLoading, { once: true });
       video.addEventListener(
@@ -98,74 +158,79 @@ export function VideoPlayer({
       void startPlayback();
     }
 
+    function attachHls(url: string) {
+      if (!video) return;
+
+      if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        attachNative(url);
+        return;
+      }
+
+      if (!Hls.isSupported()) {
+        fail("HLS playback is not supported in this browser.");
+        return;
+      }
+
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        autoStartLoad: false,
+        startLevel: 0,
+        abrEwmaDefaultEstimate: 200_000,
+        maxBufferLength: 6,
+        maxMaxBufferLength: 14,
+        maxBufferSize: 8 * 1000 * 1000,
+        maxBufferHole: 0.5,
+        startFragPrefetch: true,
+        testBandwidth: false,
+        progressive: true,
+      });
+      hls.loadSource(url);
+      hls.attachMedia(video);
+
+      hls.on(Hls.Events.MANIFEST_PARSED, (_evt, data) => {
+        const lowest = lowestLevelIndex(data.levels || []);
+        hls!.startLevel = lowest;
+        hls!.loadLevel = lowest;
+        hls!.nextLoadLevel = lowest;
+        hls!.currentLevel = lowest;
+        hls!.autoLevelCapping = Math.min(
+          lowest + 1,
+          Math.max(0, (data.levels?.length || 1) - 1),
+        );
+        hls!.startLoad(0);
+        void startPlayback();
+        abrReleaseTimer = window.setTimeout(() => {
+          if (cancelled || !hls) return;
+          hls.autoLevelCapping = -1;
+        }, 8_000);
+      });
+      hls.on(Hls.Events.FRAG_BUFFERED, clearLoading);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data.fatal || cancelled) return;
+        fail(
+          "Stream error. Open this episode in the AnyMe app if it keeps failing.",
+        );
+        hls?.destroy();
+      });
+    }
+
     async function setup() {
       try {
-        const probe = await fetch(src, {
-          cache: "no-store",
-          headers: { Accept: "*/*" },
-        });
-        const contentType = probe.headers.get("content-type") || "";
-
-        if (!probe.ok) {
-          const body = await probe.json().catch(() => ({}));
-          if (
-            (body as { error?: string }).error === "premium_content" ||
-            (body as { app_required?: boolean }).app_required
-          ) {
-            fail("This episode is available only in the AnyMe app.");
-            return;
-          }
-          throw new Error(
-            (body as { message?: string }).message ||
-              "Could not load this video.",
-          );
-        }
-
-        if (contentType.includes("application/json")) {
-          const body = (await probe.json()) as {
-            type?: string;
-            url?: string;
-            message?: string;
-          };
-          if (body.type === "mp4" && body.url) {
-            attachNative(body.url);
-            return;
-          }
-          fail(
-            body.message ||
-              "Playback is unavailable in the browser. Open in the app.",
-          );
+        const body = await resolvePlayback(videoKey);
+        if (cancelled) return;
+        if (body.type === "mp4") {
+          attachNative(body.url);
           return;
         }
-
-        if (cancelled || !video) return;
-
-        if (video.canPlayType("application/vnd.apple.mpegurl")) {
-          attachNative(src);
-          return;
-        }
-
-        if (Hls.isSupported()) {
-          hls = new Hls({ enableWorker: true, lowLatencyMode: false });
-          hls.loadSource(src);
-          hls.attachMedia(video);
-          hls.on(Hls.Events.MANIFEST_PARSED, () => {
-            clearLoading();
-            void startPlayback();
-          });
-          hls.on(Hls.Events.ERROR, (_event, data) => {
-            if (!data.fatal || cancelled) return;
-            fail(
-              "Stream error. Open this episode in the AnyMe app if it keeps failing.",
-            );
-            hls?.destroy();
-          });
-          return;
-        }
-
-        fail("HLS playback is not supported in this browser.");
+        attachHls(body.url);
       } catch (e) {
-        fail(e instanceof Error ? e.message : "Could not load this video.");
+        const err = e as Error & { appRequired?: boolean };
+        if (err.appRequired) {
+          fail("This episode is available only in the AnyMe app.");
+          return;
+        }
+        fail(err.message || "Could not load this video.");
       }
     }
 
@@ -173,6 +238,7 @@ export function VideoPlayer({
 
     return () => {
       cancelled = true;
+      if (abrReleaseTimer) window.clearTimeout(abrReleaseTimer);
       hls?.destroy();
       if (video) {
         video.removeAttribute("src");
@@ -181,7 +247,6 @@ export function VideoPlayer({
     };
   }, [videoKey]);
 
-  // If browser forced mute, unmute on first user gesture anywhere on the page
   useEffect(() => {
     if (!muted) return;
     const video = videoRef.current;
@@ -189,15 +254,26 @@ export function VideoPlayer({
 
     function unmuteOnGesture() {
       if (!video) return;
-      video.muted = false;
+      unlockTapRef.current = true;
+      applyUnmuted(video);
       setMuted(false);
       void video.play().catch(() => undefined);
     }
 
-    window.addEventListener("pointerdown", unmuteOnGesture, { once: true });
+    // Capture so scroll/overlay taps still unlock sound on mobile
+    window.addEventListener("pointerdown", unmuteOnGesture, {
+      once: true,
+      capture: true,
+    });
+    window.addEventListener("touchstart", unmuteOnGesture, {
+      once: true,
+      capture: true,
+      passive: true,
+    });
     window.addEventListener("keydown", unmuteOnGesture, { once: true });
     return () => {
-      window.removeEventListener("pointerdown", unmuteOnGesture);
+      window.removeEventListener("pointerdown", unmuteOnGesture, true);
+      window.removeEventListener("touchstart", unmuteOnGesture, true);
       window.removeEventListener("keydown", unmuteOnGesture);
     };
   }, [muted]);
@@ -245,33 +321,55 @@ export function VideoPlayer({
       video.removeEventListener("pause", onPause);
       video.removeEventListener("ended", onEnded);
     };
-  }, [nextHref, nextLockedEpisodeId, videoKey, router, open, seriesId]);
+  }, [
+    nextHref,
+    nextLockedEpisodeId,
+    videoKey,
+    router,
+    open,
+    seriesId,
+    episodeId,
+    title,
+  ]);
 
   function togglePlay() {
     const video = videoRef.current;
     if (!video || error) return;
-    if (video.paused) {
-      video.muted = false;
-      setMuted(false);
-      void video.play();
-    } else {
-      video.pause();
+    if (unlockTapRef.current) {
+      unlockTapRef.current = false;
+      return;
     }
+    if (muted) {
+      applyUnmuted(video);
+      setMuted(false);
+      if (video.paused) void video.play().catch(() => undefined);
+      return;
+    }
+    if (video.paused) void video.play().catch(() => undefined);
+    else video.pause();
   }
 
   function unmute() {
     const video = videoRef.current;
     if (!video) return;
-    video.muted = false;
+    applyUnmuted(video);
     setMuted(false);
-    void video.play();
+    void video.play().catch(() => undefined);
+  }
+
+  function unlockSound() {
+    unlockTapRef.current = true;
+    unmute();
   }
 
   function seek(e: MouseEvent<HTMLDivElement>) {
     const video = videoRef.current;
     if (!video || !video.duration) return;
     const rect = e.currentTarget.getBoundingClientRect();
-    const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const ratio = Math.min(
+      1,
+      Math.max(0, (e.clientX - rect.left) / rect.width),
+    );
     video.currentTime = ratio * video.duration;
     setProgress(ratio);
   }
@@ -283,15 +381,16 @@ export function VideoPlayer({
         className="h-full w-full bg-black object-cover"
         playsInline
         muted={muted}
+        preload="auto"
         poster={poster || undefined}
         title={title}
-        onClick={togglePlay}
       />
-
-      {/* Tap anywhere to play/pause — no native browser controls */}
       <button
         type="button"
-        aria-label={playing ? "Pause" : "Play"}
+        aria-label={muted ? "Unmute" : playing ? "Pause" : "Play"}
+        onPointerDown={() => {
+          if (muted) unlockSound();
+        }}
         onClick={togglePlay}
         className="absolute inset-0 z-[1]"
       />
@@ -299,9 +398,10 @@ export function VideoPlayer({
       {muted && !loading && !error && (
         <button
           type="button"
-          onClick={(e) => {
+          onPointerDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
-            unmute();
+            unlockSound();
           }}
           className="absolute left-1/2 top-4 z-[3] flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[11px] font-medium text-white backdrop-blur-sm"
         >
@@ -316,7 +416,6 @@ export function VideoPlayer({
         </div>
       )}
 
-      {/* Thin Mochi-style progress bar */}
       <div
         role="slider"
         aria-label="Seek"
@@ -339,8 +438,8 @@ export function VideoPlayer({
       </div>
 
       {loading && !error && (
-        <div className="absolute inset-0 z-[2] flex items-center justify-center bg-black/45 text-sm text-white/80">
-          Loading stream…
+        <div className="absolute inset-0 z-[2] flex items-center justify-center bg-black/35 text-sm text-white/80">
+          Loading…
         </div>
       )}
 
@@ -362,7 +461,12 @@ export function VideoPlayer({
 
 function PlayIcon({ className }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden
+    >
       <path d="M8 5v14l11-7z" />
     </svg>
   );

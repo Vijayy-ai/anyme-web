@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { GetTheAppButton } from "@/components/GetTheAppButton";
+import { DesktopOnly, MobileOnly } from "@/components/Breakpoint";
 import { DesktopWatchReel } from "@/components/DesktopWatchReel";
 import { MobileWatchReel } from "@/components/MobileWatchReel";
 import { SetNowPlaying } from "@/components/NowPlayingPill";
@@ -91,17 +92,20 @@ export default async function WatchPage({ params }: PageProps) {
         poster={poster}
       />
 
-      <MobileWatchReel
-        seriesId={seriesId}
-        seriesTitle={series.title}
-        seriesDescription={series.description}
-        poster={poster}
-        initialEpisodeId={episodeId}
-        episodes={reelEpisodes}
-      />
+      <MobileOnly>
+        <MobileWatchReel
+          seriesId={seriesId}
+          seriesTitle={series.title}
+          seriesDescription={series.description}
+          poster={poster}
+          initialEpisodeId={episodeId}
+          episodes={reelEpisodes}
+        />
+      </MobileOnly>
 
       {/* Mochi stage: player + rail + dual plates, full height under header */}
-      <div className="relative hidden min-h-[70vh] w-full items-stretch px-3 py-3 sm:px-4 lg:flex lg:h-full lg:min-h-0 lg:px-4 lg:py-4">
+      <DesktopOnly>
+      <div className="relative flex min-h-[70vh] w-full items-stretch px-3 py-3 sm:px-4 lg:h-full lg:min-h-0 lg:px-4 lg:py-4">
         <div className="mx-auto flex w-full max-w-[1600px] items-center gap-4 lg:h-full lg:min-h-0 lg:gap-6">
           {/* Back */}
           <Link
@@ -253,6 +257,7 @@ export default async function WatchPage({ params }: PageProps) {
           </aside>
         </div>
       </div>
+      </DesktopOnly>
 
       {/* Mobile episodes */}
       <div className="relative z-10 hidden w-full bg-[#0e1012] px-3 pb-8 pt-2">

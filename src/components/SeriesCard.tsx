@@ -132,6 +132,11 @@ export function SeriesCard({ series, rank }: Props) {
           };
           if (body.type === "mp4" && body.url) {
             attachMp4(body.url);
+            return;
+          }
+          if (body.type === "hls" && body.url) {
+            attachHls(body.url);
+            return;
           }
           return;
         }
